@@ -16,6 +16,7 @@
         .include        "errno.inc"
         .include        "_file.inc"
 
+        .macpack        cpu
 
 ; ------------------------------------------------------------------------
 ; Code
@@ -33,7 +34,11 @@
 
         ldy     #_FILE::f_flags
         lda     (ptr1),y
+        .if (.cpu .bitand ::CPU_ISET_65SC02)
+        bit     #_FOPEN
+        .else
         and     #_FOPEN                 ; Is the file open?
+        .endif
         bne     @L2                     ; Branch if yes
 
 ; File not open
@@ -45,7 +50,9 @@
 
 ; Check if the stream is in an error state
 
-@L2:    lda     (ptr1),y                ; get file->f_flags again
+@L2:    .if (.not .cpu .bitand ::CPU_ISET_65SC02)
+        lda     (ptr1),y                ; get file->f_flags again
+        .endif
         and     #_FERROR
         bne     @L1
 
@@ -123,4 +130,3 @@
 
 .bss
 file:   .res    2
-

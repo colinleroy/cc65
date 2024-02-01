@@ -20,6 +20,7 @@
         .include        "_file.inc"
 
         .macpack        generic
+        .macpack        cpu
 
 ; ------------------------------------------------------------------------
 ; Code
@@ -47,13 +48,21 @@
 
         ldy     #_FILE::f_flags
         lda     (file),y
+        .if (.cpu .bitand ::CPU_ISET_65SC02)
+        bit     #_FOPEN                 ; Is the file open?
+        .else
         and     #_FOPEN                 ; Is the file open?
+        .endif
         beq     @L1                     ; Branch if no
 
 ; Check if the stream is in an error state
 
+        .if (.cpu .bitand ::CPU_ISET_65SC02)
+        bit     #_FERROR
+        .else
         lda     (file),y                ; get file->f_flags again
         and     #_FERROR
+        .endif
         beq     @L2
 
 ; File not open or in error state
@@ -65,11 +74,19 @@
 
 ; Remember if we have a pushed back character and reset the flag.
 
-@L2:    tax                             ; X = 0
+@L2:    .if (.cpu .bitand ::CPU_ISET_65SC02)
+        ldx     #$00
+        bit     #_FPUSHBACK
+        .else
+        tax                             ; X = 0
         lda     (file),y
         and     #_FPUSHBACK
+        .endif
         beq     @L3
+
+        .if (.not .cpu .bitand ::CPU_ISET_65SC02)
         lda     (file),y
+        .endif
         and     #<~_FPUSHBACK
         sta     (file),y                ; file->f_flags &= ~_FPUSHBACK;
         inx                             ; X = 1
@@ -210,4 +227,3 @@
 .bss
 save:   .res    2
 pb:     .res    1
-
