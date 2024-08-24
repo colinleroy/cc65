@@ -6,9 +6,11 @@
 
         .export         _exit, done, return
         .export         __STARTUP__ : absolute = 1      ; Mark as startup
+        .export         __argc, __argv
 
         .import         initlib, donelib
-        .import         zerobss, callmain
+        .import         zerobss, _main
+        .import         pushax
         .import         __ONCE_LOAD__, __ONCE_SIZE__    ; Linker generated
         .import         __LC_START__, __LC_LAST__       ; Linker generated
 
@@ -33,7 +35,26 @@
         jsr     zerobss
 
         ; Push the command-line arguments; and, call main().
-        jsr     callmain
+        jmp     callmain
+
+; ------------------------------------------------------------------------
+
+        .code
+
+;---------------------------------------------------------------------------
+; Setup the stack for main(), then jump to it
+
+callmain:
+        lda     __argc
+        ldx     __argc+1
+        jsr     pushax          ; Push argc
+
+        lda     __argv
+        ldx     __argv+1
+        jsr     pushax          ; Push argv
+
+        ldy     #4              ; Argument size
+        jsr     _main
 
         ; Avoid a re-entrance of donelib. This is also the exit() entry.
 _exit:  ldx     #<exit
@@ -195,6 +216,9 @@ q_param:.byte   $04             ; param_count
 
         ; Final jump when we're done
 done:   jmp     DOSWARM         ; Potentially patched at runtime
+
+__argc:         .word   0
+__argv:         .addr   0
 
 ; ------------------------------------------------------------------------
 
