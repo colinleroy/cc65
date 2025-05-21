@@ -11,6 +11,8 @@
 
         .import         returnFFFF
 
+        .constructor    detect80cols
+
         .include        "apple2.inc"
         .include        "mli.inc"
 
@@ -18,22 +20,59 @@
 VIDEOMODE_40x24 = $15
 VIDEOMODE_80x24 = $00
 
+        .data
+
+card_detected:        .byte 0
+
+        .segment        "ONCE"
+
+IdOfsTable:                     ; Table of bytes positions, used to check four
+                                ; specific bytes on the slot's firmware to make
+                                ; sure this is a serial card.
+        .byte   $05             ; Pascal 1.0 ID byte
+        .byte   $07             ; Pascal 1.0 ID byte
+        .byte   $0B             ; Pascal 1.1 generic signature byte
+        .byte   $0C             ; Device signature byte
+
+IdValTable:                     ; Table of expected values for the four checked
+                                ; bytes
+        .byte   $38             ; ID Byte 0 (from Pascal 1.0), fixed
+        .byte   $18             ; ID Byte 1 (from Pascal 1.0), fixed
+        .byte   $01             ; Generic signature for Pascal 1.1, fixed
+        .byte   $88             ; Device signature byte (80 columns card)
+
+IdTableLen      = * - IdValTable
+
+detect80cols:
+        .ifndef __APPLE2ENH__
+        lda     machinetype     ; Check we're on a //e at least, otherwise we
+        bpl     NoDev           ; handle no 80cols hardware (like Videx)
+        .endif
+
+        ldx     #$00
+:       ldy     IdOfsTable,x    ; Check Pascal 1.1 Firmware Protocol ID bytes
+        lda     IdValTable,x
+        cmp     $C300,y
+        bne     NoDev
+        inx
+        cpx     #IdTableLen
+        bcc     :-
+
+        dec     card_detected ; We have an 80-columns card! Set flag to $FF
+
+NoDev:  rts
+
         .segment        "LOWCODE"
 
 _videomode:
-        ; Functionally equivalent to previous assumption that
-        ; __APPLE2ENH__ == 80 columns hardware present. Will be
-        ; correctly checked in the very near future.
-        .ifndef __APPLE2ENH__
-        bit     machinetype
-        bvs     set_mode
+        bit     card_detected
+        bmi     set_mode
 
         ; No 80 column card, return error if requested mode is 80cols
         cmp     #VIDEOMODE_40x24
         beq     out
         jmp     returnFFFF
 set_mode:
-        .endif
 
         ; Get and save current videomode flag
         bit     RD80VID
